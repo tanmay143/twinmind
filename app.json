@@ -1,29 +1,19 @@
 {
   "expo": {
-    "name": "Twinmind",
-    "slug": "Twinmind",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "ios": {
-      "supportsTablet": true
+    "slug": "twinmind",
+    "extra": {
+      "eas": {
+        "projectId": "ab259a9d-1722-46d5-beeb-9d70696a3985"
+      }
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true
+      "package": "com.tranhad.twinmind"
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    }
+    "plugins": [
+      "@react-native-google-signin/google-signin", 
+      "expo-sqlite",
+      "expo-audio"
+    
+    ]
   }
 }

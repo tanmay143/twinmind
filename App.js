@@ -1,20 +1,48 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+
+
+import { useEffect } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import AppNavigator from './src/navigation/AppNavigator';
+import { getDB } from './src/services/chunkDB'; 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const checkLoginValidity = async () => {
+  const timestamp = await AsyncStorage.getItem('loginTimestamp');
+  if (!timestamp) return false;
+
+  const loginTime = parseInt(timestamp, 10);
+  const now = Date.now();
+  const twentyFourHours = 24 * 60 * 60 * 1000;
+
+  return now - loginTime < twentyFourHours;
+};
+
+
 
 export default function App() {
+  useEffect(() => {
+  const validateLogin = async () => {
+    const isValid = await checkLoginValidity();
+    if (isValid) {
+      navigation.replace('Home');
+    } else {
+      await GoogleSignin.signOut(); // optional: clear Google session
+      await AsyncStorage.clear();   // flush user info
+      navigation.replace('Login');
+    }
+  };
+
+  validateLogin();
+}, []);
+  useEffect(() => {
+    getDB(); 
+  }, []);
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <NavigationContainer>
+      <AppNavigator />
+    </NavigationContainer>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+
+
