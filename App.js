@@ -5,6 +5,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { getDB } from './src/services/chunkDB'; 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
 
 const checkLoginValidity = async () => {
   const timestamp = await AsyncStorage.getItem('loginTimestamp');
@@ -38,9 +40,11 @@ export default function App() {
     getDB(); 
   }, []);
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <NavigationContainer>
       <AppNavigator />
     </NavigationContainer>
+    </GestureHandlerRootView>
   );
 }
 

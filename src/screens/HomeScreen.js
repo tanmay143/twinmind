@@ -47,7 +47,7 @@ export default function HomeScreen() {
           <Tab.Screen name="Ask All Memories" component={ChatScreen} />
         </Tab.Navigator>
 
-        {(currentRoute === 'Memories' || currentRoute === 'Calendar') && (
+        {(currentRoute !== 'Ask All Memories' ) && (
           <FloatingRecordButton />
         )}
       </View>

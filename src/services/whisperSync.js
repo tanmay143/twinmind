@@ -1,5 +1,11 @@
+// ✅ whispersync.js (handles short final chunk if <30s by reusing logic from recordChunk)
 import * as FileSystem from 'expo-file-system';
-import { getUnsyncedChunks, markChunkAsSynced, insertChunk, getTranscriptsForSession } from './chunkDB';
+import {
+  getUnsyncedChunks,
+  markChunkAsSynced,
+  insertChunk,
+  getTranscriptsForSession
+} from './chunkDB';
 import { OPENAI_API_KEY } from '@env';
 import { Audio } from 'expo-av';
 import { db } from './firebaseInit';
@@ -9,6 +15,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 let recording = null;
 let isRecording = false;
 let startId = null;
+
+const isWhisperReachable = async () => {
+  try {
+    const response = await fetch('https://api.openai.com/v1/models', {
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` },
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+};
 
 export const toggleRecording = async (onRecordingStateChange) => {
   if (isRecording) {
@@ -30,21 +47,41 @@ export const startRecording = async () => {
     const { recording: newRecording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
     recording = newRecording;
 
-    // Create a new memory in Firestore
     const userEmail = await AsyncStorage.getItem('userEmail');
     const memoryRef = await addDoc(collection(db, 'memories'), {
       user: userEmail,
       createdAt: new Date().toISOString(),
       transcripts: [],
       summary: '',
+      fullText: '',
     });
 
     await AsyncStorage.setItem('currentMemoryId', memoryRef.id);
     startId = Date.now();
 
-    setTimeout(() => recordChunk(), 30000); // First 30s chunk
+    setTimeout(() => recordChunk(), 30000);
   } catch (err) {
     console.error('🎙️ Failed to start recording:', err);
+  }
+};
+
+const processRecordingChunk = async (uri) => {
+  const id = Date.now();
+  const timestamp = new Date().toISOString();
+  await insertChunk(id, uri, timestamp);
+
+  const isReachable = await isWhisperReachable();
+  if (isReachable) {
+    const result = await uploadToWhisper({ id, filePath: uri });
+    if (result?.text) {
+      console.log(`📄 Transcript for chunk ${id}:`, result.text);
+      await markChunkAsSynced(id, result.text);
+      const memoryId = await AsyncStorage.getItem('currentMemoryId');
+      await updateDoc(doc(db, 'memories', memoryId), {
+        transcripts: arrayUnion({ id, text: result.text }),
+      });
+      await FileSystem.deleteAsync(uri, { idempotent: true });
+    }
   }
 };
 
@@ -54,35 +91,39 @@ const recordChunk = async () => {
 
     await recording.stopAndUnloadAsync();
     const uri = recording.getURI();
-    const id = Date.now();
-    const timestamp = new Date().toISOString();
+    if (!uri) return;
 
-    await insertChunk(id, uri, timestamp);
+    await processRecordingChunk(uri);
 
-    const result = await uploadToWhisper({ id, filePath: uri });
-    if (result?.text) {
-      await markChunkAsSynced(id, result.text);
-      const memoryId = await AsyncStorage.getItem('currentMemoryId');
-      const userEmail = await AsyncStorage.getItem('userEmail');
-
-      await updateDoc(doc(db, 'memories', memoryId), {
-        transcripts: arrayUnion({ id, text: result.text }),
-      });
-
-      await FileSystem.deleteAsync(uri, { idempotent: true });
-      console.log(`✅ Added transcript to memory ${memoryId}`);
-    }
-
-    // Prepare next 30s chunk
+    await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
     const { recording: newRecording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
     recording = newRecording;
 
     if (isRecording) {
       setTimeout(() => recordChunk(), 30000);
     }
-
   } catch (error) {
     console.error('🔁 Error in recordChunk:', error);
+  }
+};
+
+export const syncUnsyncedChunks = async () => {
+  const reachable = await isWhisperReachable();
+  if (!reachable) return;
+
+  const unsyncedChunks = await getUnsyncedChunks();
+  const memoryId = await AsyncStorage.getItem('currentMemoryId');
+
+  for (const chunk of unsyncedChunks) {
+    const result = await uploadToWhisper({ id: chunk.id, filePath: chunk.filePath });
+    if (result?.text) {
+      console.log(`📄 Synced transcript ${chunk.id}:`, result.text);
+      await markChunkAsSynced(chunk.id, result.text);
+      await updateDoc(doc(db, 'memories', memoryId), {
+        transcripts: arrayUnion({ id: chunk.id, text: result.text }),
+      });
+      await FileSystem.deleteAsync(chunk.filePath, { idempotent: true });
+    }
   }
 };
 
@@ -104,9 +145,7 @@ const uploadToWhisper = async (chunk) => {
       },
       body: formData,
     });
-
-    const result = await response.json();
-    return result;
+    return await response.json();
   } catch (error) {
     console.error('❌ Whisper upload failed:', error);
     return null;
@@ -118,12 +157,17 @@ const stopAndProcessRecording = async () => {
     isRecording = false;
     if (recording) {
       await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
       recording = null;
+      if (uri) await processRecordingChunk(uri); // handle final short chunk
     }
+
+    await syncUnsyncedChunks();
 
     const endId = Date.now();
     const transcriptChunks = await getTranscriptsForSession(startId, endId);
-    const fullText = transcriptChunks.map(t => t.transcript).join(' ');
+    const fullText = transcriptChunks.map(t => t.transcript).join(' ').trim();
+    console.log('🧩 Final fullText for summary:', fullText);
 
     const summary = await generateSummary(fullText);
     const memoryId = await AsyncStorage.getItem('currentMemoryId');
@@ -132,7 +176,6 @@ const stopAndProcessRecording = async () => {
         summary: summary,
         fullText: fullText,
       });
-      console.log('📝 Final summary added to memory:', memoryId);
     }
 
     await AsyncStorage.removeItem('currentMemoryId');

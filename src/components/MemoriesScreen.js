@@ -3,18 +3,19 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   TouchableOpacity,
   Modal,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebaseInit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ChatWithMemoryScreen from './ChatWithMemoryScreen';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import { RefreshControl } from 'react-native-gesture-handler';
 
-const { height, width } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 const Tab = createMaterialTopTabNavigator();
 
 function TranscriptTab({ text }) {
@@ -75,14 +76,35 @@ export default function MemoriesScreen() {
     });
   };
 
+  const groupMemoriesByDate = (data) => {
+    const groups = {};
+
+    data.forEach((item) => {
+      const date = new Date(item.createdAt);
+      const dateStr = formatDate(date);
+
+      if (!groups[dateStr]) groups[dateStr] = [];
+      groups[dateStr].push(item);
+    });
+
+    const sortedDates = Object.keys(groups).sort((a, b) => {
+      const aDate = new Date(groups[a][0].createdAt);
+      const bDate = new Date(groups[b][0].createdAt);
+      return bDate - aDate;
+    });
+
+    return sortedDates.map((dateStr) => ({
+      title: dateStr,
+      data: groups[dateStr],
+    }));
+  };
+
   const MemoryCard = ({ item }) => {
     const date = new Date(item.createdAt);
-    const dateStr = formatDate(date);
     const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     return (
       <View style={styles.cardContainer}>
-        <Text style={styles.dateText}>{dateStr}</Text>
         <View style={styles.card}>
           <View style={styles.cardRow}>
             <Text style={styles.timeText}>{timeStr}</Text>
@@ -108,7 +130,6 @@ export default function MemoriesScreen() {
               }}
             >
               <Text style={[styles.buttonText, { color: 'white' }]}>Chat</Text>
-
             </TouchableOpacity>
           </View>
         </View>
@@ -155,17 +176,37 @@ export default function MemoriesScreen() {
           }}
         />
       ) : (
-        <View style={styles.container}>
-          <FlatList
-            data={memories}
-            keyExtractor={item => item.id}
-            renderItem={({ item }) => <MemoryCard item={item} />}
-            contentContainerStyle={{ paddingBottom: height * 0.1 }}
+        // <ScrollView style={styles.container}>
+        //   {groupMemoriesByDate(memories).map((section) => (
+        //     <View key={section.title} style={{ marginBottom: 24 }}>
+        //       <Text style={styles.dateText}>{section.title}</Text>
+        //       {section.data.map((item) => (
+        //         <MemoryCard key={item.id} item={item} />
+        //       ))}
+        //     </View>
+        //   ))}
+        //   {showDetailsModal && <DetailsModal />}
+        // </ScrollView>
+        <ScrollView
+        style={styles.container}
+        refreshControl={
+          <RefreshControl
             refreshing={refreshing}
             onRefresh={() => fetchMemories(true)}
+            colors={['#2C597B']}
           />
-          {showDetailsModal && <DetailsModal />}
-        </View>
+        }
+      >
+        {groupMemoriesByDate(memories).map((section) => (
+          <View key={section.title} style={{ marginBottom: 24 }}>
+            <Text style={styles.dateText}>{section.title}</Text>
+            {section.data.map((item) => (
+              <MemoryCard key={item.id} item={item} />
+            ))}
+          </View>
+        ))}
+        {showDetailsModal && <DetailsModal />}
+      </ScrollView>
       )}
     </>
   );
@@ -173,8 +214,14 @@ export default function MemoriesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: '#f9f9f9' },
-  cardContainer: { marginBottom: 20 },
-  dateText: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
+  cardContainer: { marginBottom: 12 },
+  dateText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#2C597B',
+    marginBottom: 8,
+    marginTop: 8,
+  },
   card: {
     backgroundColor: '#fff',
     padding: 12,
