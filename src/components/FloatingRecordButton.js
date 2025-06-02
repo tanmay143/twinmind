@@ -29,7 +29,7 @@ export default function FloatingRecordButton() {
 const styles = StyleSheet.create({
   floatingWrapper: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 70,
     right: 24,
     zIndex: 100,
   },

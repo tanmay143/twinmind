@@ -9,7 +9,16 @@ export default function AppNavigator() {
   return (
     <Stack.Navigator initialRouteName="Login">
       <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="Home" component={HomeScreen} />
+      <Stack.Screen name="Home" component={HomeScreen} options={
+        {
+          title:"Twinmind",
+          headerTitleAlign:'center',
+          headerTitleStyle:{
+            color:'#2C597B',
+          }
+
+        }
+      }/>
     </Stack.Navigator>
   );
 }
