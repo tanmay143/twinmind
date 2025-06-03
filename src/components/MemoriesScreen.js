@@ -13,6 +13,8 @@ import { db } from '../services/firebaseInit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ChatWithMemoryScreen from './ChatWithMemoryScreen';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import { NavigationContainer, NavigationIndependentTree } from '@react-navigation/native';
+
 import { RefreshControl } from 'react-native-gesture-handler';
 
 const { height } = Dimensions.get('window');
@@ -21,7 +23,9 @@ const Tab = createMaterialTopTabNavigator();
 function TranscriptTab({ text }) {
   return (
     <View style={styles.tabContainer}>
-      <Text style={styles.modalText}>{text || '⏳ Still recording...'}</Text>
+      <Text style={styles.modalText}>
+        {typeof text === 'string' && text.trim() !== '' ? text : '⏳ Still recording or no data yet.'}
+      </Text>
     </View>
   );
 }
@@ -29,7 +33,9 @@ function TranscriptTab({ text }) {
 function SummaryTab({ text }) {
   return (
     <View style={styles.tabContainer}>
-      <Text style={styles.modalText}>{text || '💡 Summary will appear after recording ends'}</Text>
+      <Text style={styles.modalText}>
+        {typeof text === 'string' && text.trim() !== '' ? text : '💡 Summary will appear after recording ends'}
+      </Text>
     </View>
   );
 }
@@ -78,11 +84,9 @@ export default function MemoriesScreen() {
 
   const groupMemoriesByDate = (data) => {
     const groups = {};
-
     data.forEach((item) => {
       const date = new Date(item.createdAt);
       const dateStr = formatDate(date);
-
       if (!groups[dateStr]) groups[dateStr] = [];
       groups[dateStr].push(item);
     });
@@ -137,31 +141,40 @@ export default function MemoriesScreen() {
     );
   };
 
-  const DetailsModal = () => (
-    <Modal visible={showDetailsModal} animationType="slide" transparent>
-      <View style={styles.modalContainer}>
-        <View style={styles.modalContent}>
-          <Tab.Navigator>
-            <Tab.Screen name="Transcript">
-              {() => <TranscriptTab text={selectedMemory?.fullText} />}
-            </Tab.Screen>
-            <Tab.Screen name="Summary">
-              {() => <SummaryTab text={selectedMemory?.summary} />}
-            </Tab.Screen>
-          </Tab.Navigator>
-          <TouchableOpacity
-            onPress={() => {
-              setSelectedMemory(null);
-              setShowDetailsModal(false);
-            }}
-            style={styles.closeButton}
-          >
-            <Text style={styles.closeText}>Close</Text>
-          </TouchableOpacity>
+  const DetailsModal = () => {
+    if (!selectedMemory) return null;
+
+    return (
+      <Modal visible={showDetailsModal} animationType="slide" transparent>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <NavigationIndependentTree>
+              <NavigationContainer independent={true}>
+                <Tab.Navigator>
+                  <Tab.Screen name="Transcript">
+                    {() => <TranscriptTab text={selectedMemory.fullText || ''} />}
+                  </Tab.Screen>
+                  <Tab.Screen name="Summary">
+                    {() => <SummaryTab text={selectedMemory.summary || ''} />}
+                  </Tab.Screen>
+                </Tab.Navigator>
+              </NavigationContainer>
+            </NavigationIndependentTree>
+
+            <TouchableOpacity
+              onPress={() => {
+                setSelectedMemory(null);
+                setShowDetailsModal(false);
+              }}
+              style={styles.closeButton}
+            >
+              <Text style={styles.closeText}>Close</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </Modal>
-  );
+      </Modal>
+    );
+  };
 
   return (
     <>
@@ -176,37 +189,26 @@ export default function MemoriesScreen() {
           }}
         />
       ) : (
-        // <ScrollView style={styles.container}>
-        //   {groupMemoriesByDate(memories).map((section) => (
-        //     <View key={section.title} style={{ marginBottom: 24 }}>
-        //       <Text style={styles.dateText}>{section.title}</Text>
-        //       {section.data.map((item) => (
-        //         <MemoryCard key={item.id} item={item} />
-        //       ))}
-        //     </View>
-        //   ))}
-        //   {showDetailsModal && <DetailsModal />}
-        // </ScrollView>
         <ScrollView
-        style={styles.container}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => fetchMemories(true)}
-            colors={['#2C597B']}
-          />
-        }
-      >
-        {groupMemoriesByDate(memories).map((section) => (
-          <View key={section.title} style={{ marginBottom: 24 }}>
-            <Text style={styles.dateText}>{section.title}</Text>
-            {section.data.map((item) => (
-              <MemoryCard key={item.id} item={item} />
-            ))}
-          </View>
-        ))}
-        {showDetailsModal && <DetailsModal />}
-      </ScrollView>
+          style={styles.container}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => fetchMemories(true)}
+              colors={['#2C597B']}
+            />
+          }
+        >
+          {groupMemoriesByDate(memories).map((section) => (
+            <View key={section.title} style={{ marginBottom: 24 }}>
+              <Text style={styles.dateText}>{section.title}</Text>
+              {section.data.map((item) => (
+                <MemoryCard key={item.id} item={item} />
+              ))}
+            </View>
+          ))}
+          {showDetailsModal && <DetailsModal />}
+        </ScrollView>
       )}
     </>
   );
@@ -267,15 +269,17 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#000000aa',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
-    padding: 16,
+    alignItems: 'center',
   },
   modalContent: {
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
-    flex: 0.8,
+    width: '100%',
+    height: '80%',
+    overflow: 'hidden',
   },
   tabContainer: {
     flex: 1,

@@ -196,7 +196,16 @@ const generateSummary = async (fullText) => {
       body: JSON.stringify({
         model: 'gpt-3.5-turbo',
         messages: [
-          { role: 'system', content: 'Summarize this transcript of a meeting.' },
+          {
+            role: 'system',
+            content: `Summarize this transcript of a meeting. Provide the summary as clear, concise bullet points.
+
+                      Include:
+                      - Key discussion points
+                      - Important decisions or takeaways
+                      - Action items (if any)
+                      - Any notable concerns or follow-ups`
+          },
           { role: 'user', content: fullText },
         ],
       }),
