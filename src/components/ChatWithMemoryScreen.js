@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../services/firebaseInit';
 import {
   View,
   Text,
@@ -15,63 +17,86 @@ import { OPENAI_API_KEY } from '@env';
 
 const { width, height } = Dimensions.get('window');
 
-export default function ChatWithMemoryScreen({ memoryText, chatLog, setChatLog, onClose }) {
+export default function ChatWithMemoryScreen({ memory, chatLog, setChatLog, onClose }) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef();
 
   const askGPT = async () => {
-    if (!query.trim()) return;
-    const currentQuestion = query;
-    setQuery('');
-    setLoading(true);
-    setChatLog(prev => [...prev, { q: currentQuestion, a: null }]);
+  console.log('📌 memory.id:', memory?.id);
 
-    const prompt = `
-      You are a helpful and knowledgeable assistant. Use the following meeting transcripts as your knowledge base to answer the user's question accurately and concisely.
+  if (!query.trim()) return;
+  
+  let currentText = memory.fullText?.trim() || '';
 
-      Meeting Notes:
-      """
-      ${memoryText}
-      """
-
-      Now, based on the above information, answer the following user query:
-
-      User: ${currentQuestion}
-      `;
-
+  // 🔁 If memoryText is missing, refetch the memory document
+  if (!currentText && memory?.id) {
     try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
-          messages: [
-            { role: 'system', content: 'You are a helpful assistant summarizing meeting notes.' },
-            { role: 'user', content: prompt },
-          ],
-        }),
-      });
+      const snapshot = await getDoc(doc(db, 'memories', memory.id));
+      const latest = snapshot.data();
 
-      const json = await res.json();
-      const answer = json.choices?.[0]?.message?.content || 'No response.';
-      setChatLog(prev => {
-        const updated = [...prev];
-        updated[updated.length - 1].a = answer;
-        return updated;
-      });
+      if (latest?.fullText?.trim()) {
+        currentText = latest.fullText.trim();
+      } else if (Array.isArray(latest?.transcripts)) {
+        currentText = latest.transcripts.map(t => t.text).join(' ').trim();
+      }
     } catch (err) {
-      setChatLog(prev => {
-        const updated = [...prev];
-        updated[updated.length - 1].a = '❌ Error retrieving response.';
-        return updated;
-      });
+      console.error('❌ Failed to fetch updated memory from Firestore:', err);
     }
-    setLoading(false);
-  };
+  }
+  console.log(currentText)
+
+  const currentQuestion = query;
+  setQuery('');
+  setLoading(true);
+  setChatLog(prev => [...prev, { q: currentQuestion, a: null }]);
+
+  const prompt = `
+    You are a helpful and knowledgeable assistant. Use the following meeting transcripts as your knowledge base to answer the user's question accurately and concisely.
+
+    Meeting Notes:
+    """
+    ${currentText}
+    """
+
+    Now, based on the above information, answer the following user query:
+
+    User: ${currentQuestion}
+  `;
+
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: 'You are a helpful assistant summarizing meeting notes.' },
+          { role: 'user', content: prompt },
+        ],
+      }),
+    });
+
+    const json = await res.json();
+    const answer = json.choices?.[0]?.message?.content || 'No response.';
+    setChatLog(prev => {
+      const updated = [...prev];
+      updated[updated.length - 1].a = answer;
+      return updated;
+    });
+  } catch (err) {
+    setChatLog(prev => {
+      const updated = [...prev];
+      updated[updated.length - 1].a = '❌ Error retrieving response.';
+      return updated;
+    });
+  }
+
+  setLoading(false);
+};
 
   useEffect(() => {
     scrollRef.current?.scrollToEnd({ animated: true });

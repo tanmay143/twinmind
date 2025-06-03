@@ -8,7 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 
 export default function AskAllMemoriesScreen() {
   const navigation = useNavigation();
-  const [combinedTranscript, setCombinedTranscript] = useState('');
+  const [combinedMemory, setCombinedMemory] = useState(null);
   const [chatLog, setChatLog] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,7 +26,11 @@ export default function AskAllMemoriesScreen() {
           .filter(Boolean)
           .join('\n\n---\n\n');
 
-        setCombinedTranscript(allText);
+        setCombinedMemory({
+          id: 'all-memories',      // mock ID
+          fullText: allText,       // ✅ used directly in askGPT
+          transcripts: []          // optional fallback
+        });
       } catch (err) {
         console.error('Error fetching all transcripts:', err);
       } finally {
@@ -37,7 +41,7 @@ export default function AskAllMemoriesScreen() {
     fetchAllTranscripts();
   }, []);
 
-  if (loading) {
+  if (loading || !combinedMemory) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" />
@@ -47,13 +51,13 @@ export default function AskAllMemoriesScreen() {
 
   return (
     <ChatWithMemoryScreen
-      memoryText={combinedTranscript}
+      memory={combinedMemory} // ✅ pass full memory object
       chatLog={chatLog}
       setChatLog={setChatLog}
       onClose={() => {
         setChatLog([]);
         navigation.navigate('Calendar');
-      }} // not needed here unless you want a back button
+      }}
     />
   );
 }

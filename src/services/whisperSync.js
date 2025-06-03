@@ -29,9 +29,10 @@ const isWhisperReachable = async () => {
 
 export const toggleRecording = async (onRecordingStateChange) => {
   if (isRecording) {
+    onRecordingStateChange(false);
     await stopAndProcessRecording();
     isRecording = false;
-    onRecordingStateChange(false);
+    
   } else {
     await startRecording();
     isRecording = true;
@@ -127,7 +128,7 @@ export const syncUnsyncedChunks = async () => {
   }
 };
 
-const uploadToWhisper = async (chunk) => {
+export const uploadToWhisper = async (chunk) => {
   const formData = new FormData();
   formData.append('file', {
     uri: chunk.filePath,

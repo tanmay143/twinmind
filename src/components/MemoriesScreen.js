@@ -167,7 +167,7 @@ export default function MemoriesScreen() {
     <>
       {activeChat ? (
         <ChatWithMemoryScreen
-          memoryText={activeChat?.fullText || ''}
+          memory={activeChat}
           chatLog={chatLog}
           setChatLog={setChatLog}
           onClose={() => {
