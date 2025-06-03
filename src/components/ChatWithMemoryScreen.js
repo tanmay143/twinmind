@@ -79,7 +79,7 @@ export default function ChatWithMemoryScreen({ memory, chatLog, setChatLog, onCl
         ],
       }),
     });
-
+    
     const json = await res.json();
     const answer = json.choices?.[0]?.message?.content || 'No response.';
     setChatLog(prev => {
